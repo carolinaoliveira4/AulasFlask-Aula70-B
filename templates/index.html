@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% import "bootstrap/wtf.html" as wtf %}
 
-{% block title %}Avaliação Contínua: <b>Aula 060</b>{% endblock %}
+{% block title %}Avaliação Contínua: Aula 060{% endblock %}
 
 {% block page_content %}
 <div class="page-header">
@@ -31,4 +31,35 @@
     </tbody>
 
 </table>
+
+<h2>Relação de funções cadastradas</h2>
+
+<h4>Quantidade: {{user_by_role|length}}</h4>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Funções</th>
+            <th>Usuários</th>
+        </tr>
+    </thead>
+    <tbody>
+        {%for obj in user_by_role%}
+            <tr>
+                <td>{{obj.role}}</td>
+                <td>
+                    <ol>
+                        {%for user in obj.users %}
+                            <li>
+                                {{user.username}}
+                            </li>
+                        {%endfor%}
+                    </ol>
+                </td>
+            </tr>
+        {%endfor%}
+    </tbody>
+
+</table>
+
 {% endblock %}
