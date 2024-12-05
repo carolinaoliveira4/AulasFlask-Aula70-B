@@ -7,6 +7,8 @@ from wtforms import StringField, SubmitField, SelectField
 from wtforms.validators import DataRequired
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_mail import Mail, Message
+import requests
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -16,10 +18,24 @@ app.config['SQLALCHEMY_DATABASE_URI'] =\
     'sqlite:///' + os.path.join(basedir, 'data.sqlite')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Não está sendo utilizado pelo flask_mail, pois há limitações no PythonAnywhere
+# Configurando envio de e-mail
+app.config['MAIL_SERVER'] = 'smtp.mailgun.org'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['FLASKY_MAIL_SUBJECT_PREFIX'] = '[Flasky]'
+app.config['FLASKY_MAIL_SENDER'] = 'oliveira.carolina2@aluno.ifsp.edu.br'
+mail = Mail(app)
+
+
+
 bootstrap = Bootstrap(app)
 moment = Moment(app)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
 
 
 class Role(db.Model):
@@ -44,19 +60,24 @@ class User(db.Model):
 
 class NameForm(FlaskForm):
     name = StringField('What is your name?', validators=[DataRequired()])
-    role = SelectField('Role?', choices=[('Administrator', 'Admnistrator'), ('Moderator', 'Moderator'), ('User', 'User')])
     submit = SubmitField('Submit')
 
+def send_email(to, subject, template, **kwargs):
+  	return requests.post(
+  		"https://api.mailgun.net/v3/sandbox7cff48ffb31141ee86065c9a9e9b5ef9.mailgun.org/messages",
+  		auth=("api", "4b18ae0e9b237bfc4e3db5c19d58adaf-f55d7446-7898d9ed"),
+  		data={"from": "Carol@sandbox7cff48ffb31141ee86065c9a9e9b5ef9.mailgun.org",
+  			"to": to,
+  			"subject": subject,
+  			"html": render_template(template + '.html', **kwargs)})
 
 @app.shell_context_processor
 def make_shell_context():
     return dict(db=db, User=User, Role=Role)
 
-
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template('404.html'), 404
-
 
 @app.errorhandler(500)
 def internal_server_error(e):
@@ -66,28 +87,22 @@ def internal_server_error(e):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     form = NameForm()
-    users=User.query.all()
-    roles=Role.query.all()
 
-    user_by_role = []
-    for role in roles:
-        obj_rel = {
-            'role': role.name,
-            'users': role.users.all()
-        }
-        user_by_role.append(obj_rel)
 
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.name.data).first()
         if user is None:
-            role=Role.query.filter_by(name=form.role.data).first()
+            role=Role.query.filter_by(name="User").first()
             user = User(username=form.name.data, role=role)
             db.session.add(user)
             db.session.commit()
+            req = send_email(to=["oliveira.carolina2@aluno.ifsp.edu.br", "flaskaulasweb@zohomail.com"], subject="Avaliação Contínua 070", template = "new_user", user = user)
+            print("TESTETESTETSE")
+            print(req.text)
             session['known'] = False
         else:
             session['known'] = True
         session['name'] = form.name.data
         return redirect(url_for('index'))
     return render_template('index.html', form=form, name=session.get('name'),
-                           known=session.get('known', False), users=users, user_by_role=user_by_role)
+                           known=session.get('known', False))
