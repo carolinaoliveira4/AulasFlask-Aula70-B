@@ -3,12 +3,13 @@ from flask import Flask, render_template, session, redirect, url_for
 from flask_bootstrap import Bootstrap
 from flask_moment import Moment
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, SelectField
+from wtforms import StringField, SubmitField, SelectField, BooleanField
 from wtforms.validators import DataRequired
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_mail import Mail, Message
 import requests
+from dotenv import load_dotenv
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -29,7 +30,8 @@ app.config['FLASKY_MAIL_SUBJECT_PREFIX'] = '[Flasky]'
 app.config['FLASKY_MAIL_SENDER'] = 'oliveira.carolina2@aluno.ifsp.edu.br'
 mail = Mail(app)
 
-
+project_folder = os.path.expanduser('~/mysite')
+load_dotenv(os.path.join(project_folder, '.env'))
 
 bootstrap = Bootstrap(app)
 moment = Moment(app)
@@ -59,14 +61,15 @@ class User(db.Model):
 
 
 class NameForm(FlaskForm):
-    name = StringField('What is your name?', validators=[DataRequired()])
+    name = StringField('Qual é o seu nome?', validators=[DataRequired()])
+    checkbox = BooleanField('Deseja enviar e-mail para flaskaulasweb@zohomail.com?')
     submit = SubmitField('Submit')
 
 def send_email(to, subject, template, **kwargs):
   	return requests.post(
-  		"https://api.mailgun.net/v3/sandbox7cff48ffb31141ee86065c9a9e9b5ef9.mailgun.org/messages",
-  		auth=("api", "4b18ae0e9b237bfc4e3db5c19d58adaf-f55d7446-7898d9ed"),
-  		data={"from": "Carol@sandbox7cff48ffb31141ee86065c9a9e9b5ef9.mailgun.org",
+  		os.getenv("MAILGUN_SANDBOX_URL"),
+  		auth=("api", os.getenv("MAILGUN_API_KEY")),
+  		data={"from": "MariaCarolina@sandboxd22e340fb70a4d71a3d660b288bccc11.mailgun.org",
   			"to": to,
   			"subject": subject,
   			"html": render_template(template + '.html', **kwargs)})
@@ -87,7 +90,7 @@ def internal_server_error(e):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     form = NameForm()
-
+    users=User.query.all()
 
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.name.data).first()
@@ -96,8 +99,12 @@ def index():
             user = User(username=form.name.data, role=role)
             db.session.add(user)
             db.session.commit()
-            req = send_email(to=["oliveira.carolina2@aluno.ifsp.edu.br", "flaskaulasweb@zohomail.com"], subject="Avaliação Contínua 070", template = "new_user", user = user)
-            print("TESTETESTETSE")
+            lista_envio = ["oliveira.carolina2@aluno.ifsp.edu.br"]
+            if form.checkbox.data:
+                print("SALVE SALVE")
+                lista_envio.append("flaskaulasweb@zohomail.com")
+
+            req = send_email(to=lista_envio, subject="Avaliação Contínua 070", template = "new_user", user = user)
             print(req.text)
             session['known'] = False
         else:
@@ -105,4 +112,4 @@ def index():
         session['name'] = form.name.data
         return redirect(url_for('index'))
     return render_template('index.html', form=form, name=session.get('name'),
-                           known=session.get('known', False))
+                           known=session.get('known', False), users=users)
